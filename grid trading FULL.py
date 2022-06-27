@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri May 20 10:48:55 2022
+Created on Mon Jun 27 20:11:51 2022
 
-@author: KennyKuo
+@author: bbcat
 """
-
 import time
 import pandas as pd
 import numpy as np
@@ -18,8 +17,8 @@ style.use('ggplot')
 style.use('seaborn')
 TW = tz.gettz('Asia/Taipei')
 Utc=tz.gettz('utc')
-constract="OMGUSDT"
 
+workspace="C://Users//bbcat//Downloads//"
 start=0.25 #開倉門檻
 end=1 #最大開倉門檻
 interval=0.25 #網格區間
@@ -48,7 +47,7 @@ def capital_amount(N,Mean=0,Std=1,s=start,e=end,intvl=interval):
         return 0
     
 # %%
-def refresh_position(position,price,time):
+def refresh_position(position1,position2,price,time):
 
     con_idx=price.index
     net=0
@@ -56,29 +55,40 @@ def refresh_position(position,price,time):
     unrealize=0
     for i in con_idx:
         p=float(price[i])
-        term_p=(position["Constract"]==i)&(position["Volume"]>0) & ((position["Stop loss"]>p) | (position["Lock in gain"]<p))
-        term_n=(position["Constract"]==i)&(position["Volume"]<0) & ((position["Stop loss"]<p) | (position["Lock in gain"]>p))
         
-        position.loc[term_p,"C_Time"]=time
-        position.loc[term_p,"Fee"]=position.loc[term_p,"Fee"]+p*position[term_p]["Volume"]*total_fee
-        position.loc[term_p,"Profit"]=p*position[term_p]["Volume"]-position[term_p]["Cost"]-position.loc[term_p,"Fee"]
-        position.loc[term_p,"C_price"]=p
-        position.loc[term_p,"Volume"]=0
-        position.loc[term_n,"C_Time"]=time
-        position.loc[term_n,"Fee"]=position.loc[term_n,"Fee"]-p*position[term_n]["Volume"]*total_fee
-        position.loc[term_n,"Profit"]=p*position[term_n]["Volume"]-position[term_n]["Cost"]-position.loc[term_n,"Fee"]
-        position.loc[term_n,"C_price"]=p
-        position.loc[term_n,"Volume"]=0
+        if np.shape(position1)[0]>0:
+            term_p=(position1["Constract"]==i)&(position1["Volume"]>0) & ((position1["Stop loss"]>p) | (position1["Lock in gain"]<p))
+            term_n=(position1["Constract"]==i)&(position1["Volume"]<0) & ((position1["Stop loss"]<p) | (position1["Lock in gain"]>p))
+            
+            if np.shape(term_p[term_p==True])[0]>0:
+                position1.loc[term_p,"C_Time"]=time
+                position1.loc[term_p,"Fee"]=position1.loc[term_p,"Fee"]+p*position1[term_p]["Volume"]*total_fee
+                position1.loc[term_p,"Profit"]=p*position1[term_p]["Volume"]-position1[term_p]["Cost"]-position1.loc[term_p,"Fee"]
+                position1.loc[term_p,"C_price"]=p
+                position1.loc[term_p,"Volume"]=0
+                net=net+sum(position1.loc[term_p,"Profit"])
+                realize=realize+sum(position1.loc[term_p,"Profit"])+sum(position1.loc[term_p,"Cost"])
+                position2=pd.concat([position2,position1.loc[term_p]])
+                position1=position1.drop(position1.loc[term_p].index)
+            
+            if np.shape(term_n[term_n==True])[0]>0:
+                position1.loc[term_n,"C_Time"]=time
+                position1.loc[term_n,"Fee"]=position1.loc[term_n,"Fee"]-p*position1[term_n]["Volume"]*total_fee
+                position1.loc[term_n,"Profit"]=p*position1[term_n]["Volume"]-position1[term_n]["Cost"]-position1.loc[term_n,"Fee"]
+                position1.loc[term_n,"C_price"]=p
+                position1.loc[term_n,"Volume"]=0
+                net=net+sum(position1.loc[term_n,"Profit"])
+                realize=realize+sum(position1.loc[term_n,"Profit"])-sum(position1.loc[term_n,"Cost"])
+                position2=pd.concat([position2,position1.loc[term_n]])
+                position1=position1.drop(position1.loc[term_n].index)
+                            
+        term_p2=(position1["Constract"]==i)&(position1["Volume"]>0)
+        term_n2=(position1["Constract"]==i)&(position1["Volume"]<0)
         
-        term_p2=(position["Constract"]==i)&(position["Volume"]>0)
-        term_n2=(position["Constract"]==i)&(position["Volume"]<0)
-        
-        net=net+sum(position.loc[term_p,"Profit"])+sum(position[term_n]["Profit"])
-        realize=realize+sum(position.loc[term_p,"Profit"])+sum(position[term_n]["Profit"])+sum(position.loc[term_p,"Cost"])-sum(position[term_n]["Cost"])
-        unrealize=unrealize+p*sum(position.loc[term_p2,"Volume"])*(1-total_fee)-sum(position.loc[term_p2,"Fee"])+\
-            (-2*sum(position[term_n2]["Cost"])+p*sum(position.loc[term_n2,"Volume"])*(1+total_fee)-sum(position.loc[term_n2,"Fee"]))
+        unrealize=unrealize+p*sum(position1.loc[term_p2,"Volume"])*(1-total_fee)-sum(position1.loc[term_p2,"Fee"])+\
+            (-2*sum(position1[term_n2]["Cost"])+p*sum(position1.loc[term_n2,"Volume"])*(1+total_fee)-sum(position1.loc[term_n2,"Fee"]))
 
-    return [position,net,realize,unrealize]
+    return [position1,position2,net,realize,unrealize]
         
 # %%
 def open_position(idx,position,time,price,mean,vol,cash,s=start,e=end,intvl=interval):
@@ -127,8 +137,8 @@ def select_constract(open_con,volume):
 if __name__=='__main__':
     
     st = time.time()
-    rawdata=pd.read_csv("C://Users//KennyKuo//Downloads//Grid_trading//price.csv")
-    v_rawdata=pd.read_csv("C://Users//KennyKuo//Downloads//Grid_trading//volume.csv")
+    rawdata=pd.read_csv(workspace+"price.csv")
+    v_rawdata=pd.read_csv(workspace+"volume.csv")
    
     hour_data=rawdata.drop("Open time", 1).apply(lambda x:x.astype(float))
     volume_data=(hour_data*v_rawdata.drop("Open time", 1)).apply(lambda x:x.astype(float))
@@ -136,14 +146,16 @@ if __name__=='__main__':
     momt_mean=np.mean(((hour_data[1:].reset_index(drop=True)-hour_data[0:-1])/hour_data[0:-1]))
     momt_std=np.std(((hour_data[1:].reset_index(drop=True)-hour_data[0:-1])/hour_data[0:-1]))
             
-    position=pd.DataFrame(columns=["Constract","O_Time","O_price","C_Time","C_price","Proportion","Cost","Volume","Stop loss","Lock in gain","Fee","Profit","Cash"])
+    position1=pd.DataFrame(columns=["Constract","O_Time","O_price","C_Time","C_price","Proportion","Cost","Volume","Stop loss","Lock in gain","Fee","Profit","Cash"])
+    position2=pd.DataFrame(columns=["Constract","O_Time","O_price","C_Time","C_price","Proportion","Cost","Volume","Stop loss","Lock in gain","Fee","Profit","Cash"])
     bs=pd.DataFrame(index=range(np.shape(hour_data)[0]),columns=["Time","Realize","Unrealize","Gain/Loss","Cash","Total"])
     
-    
-    for t in range(38145,42600):  #range(np.shape(hour_data)[0])
+    t1=0
+    t2=0
+    for t in range(500):  #range(np.shape(hour_data)[0]) 38145,42600
         if t>72:
-            print("%d /"%t,"42600")
-            per=((hour_data.loc[t]-hour_data.loc[t-72])/hour_data.loc[t-72]).dropna()
+            #print("%d /"%t,"42600")
+            #per=((hour_data.loc[t]-hour_data.loc[t-72])/hour_data.loc[t-72]).dropna()
             vol=(np.std(hour_data.loc[t-72:t])).dropna()
             mean=hour_data.loc[t-72]
             
@@ -157,9 +169,11 @@ if __name__=='__main__':
             open_con4=(volume/60>max_position)
             open_con5=(np.mean(volume_data.loc[t-25:t-1,min_idx]).dropna()<np.mean(volume_data.loc[t-73:t-1,min_idx]).dropna())
             
+            st1 = time.time()
+            [position1,position2,net,realize,unrealize]=refresh_position(position1,position2,price,rawdata.loc[t]["Open time"])
+            ed1 = time.time()
+            t1=t1+(ed1 - st1)
             
-           
-            [position,net,realize,unrealize]=refresh_position(position,price,rawdata.loc[t]["Open time"])
             #print("%d"%net,"%d"%realize,"%d"%unrealize)
             bs.loc[t]["Realize"]=realize
             bs.loc[t]["Unrealize"]=unrealize
@@ -171,9 +185,13 @@ if __name__=='__main__':
             
             open_con= open_con2 & open_con3 & open_con4 & open_con5
             idx=select_constract(open_con,volume)
+            
+            st1 = time.time()
             for i in idx:
-                [position,pos_cost]=open_position(i,position,rawdata.loc[t]["Open time"],float(price[i]),float(mean[i]),float(vol[i]),cash)
+                [position1,pos_cost]=open_position(i,position1,rawdata.loc[t]["Open time"],float(price[i]),float(mean[i]),float(vol[i]),cash)
                 cash=cash-pos_cost
+            ed1 = time.time()
+            t2=t2+(ed1 - st1)
     bs["Time"]=rawdata["Open time"]
     bs=bs.dropna(axis=0)
     
@@ -192,4 +210,6 @@ if __name__=='__main__':
     #ax2.fill_between(bs.index,0,((bs["Total"]-bs["Total"].cummax())/bs["Total"].cummax()),facecolor='red')
     
     ed = time.time()
+    print("執行時間1：%f 秒"%t1)
+    print("執行時間2：%f 秒"%t2)
     print("執行時間：%f 秒"%(ed - st))
